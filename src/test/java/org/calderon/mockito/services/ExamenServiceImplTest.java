@@ -10,7 +10,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 import java.util.*;
 
@@ -79,4 +81,54 @@ class ExamenServiceImplTest {
         verify(preguntaRepository).findPreguntasPorExamenId(anyLong());
     }
 
+    @Test
+    void testGuardarExamen() {
+        Examen newExamen = Datos.EXAMEN;
+        newExamen.setPreguntas(Datos.PREGUNTAS);
+        when(repository.guardar(any(Examen.class))).then(new Answer<Examen>(){
+            Long secuencia = 8L;
+
+            @Override
+            public Examen answer(InvocationOnMock invocation) throws Throwable {
+                Examen examen = invocation.getArgument(0);
+                examen.setId(secuencia++);
+                return examen;
+            }
+        });
+        Examen examen = service.guardar(newExamen);
+        assertNotNull(examen);
+        assertEquals(8L, examen.getId());
+        assertEquals("Fisica", examen.getNombre());
+        verify(repository).guardar(any(Examen.class));
+        verify(preguntaRepository).guardarVarias(anyList());
+    }
+
+    @Test
+    void testManejoException(){
+        when(repository.findAll()).thenReturn(Datos.EXAMENES_ID_NULL);
+        when(preguntaRepository.findPreguntasPorExamenId(isNull())).thenThrow(IllegalArgumentException.class);
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.findExamenPorNombreConPreguntas("Matematicas");
+        });
+
+        verify(repository).findAll();
+        verify(preguntaRepository).findPreguntasPorExamenId(isNull());
+    }
+
+    @Test
+    void testManejoException2(){
+        when(repository.findAll()).thenThrow(new RuntimeException("Error de base de datos"));
+        assertThrows(RuntimeException.class, () -> service.findExamenPorNombre("Matematicas"));
+        verify(repository).findAll();
+    }
+
+    @Test
+    void testArgumentMatchers(){
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+        when(preguntaRepository.findPreguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+        verify(repository).findAll();
+        verify(preguntaRepository).findPreguntasPorExamenId(argThat(arg -> arg.equals(5L)));
+    }
 }
